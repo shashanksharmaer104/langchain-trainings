@@ -32,28 +32,19 @@ ollama_local_llm = ChatOllama(
     max_tokens=350
 )
 
-# Chat code
-template = ChatPromptTemplate.from_messages([
-    ("placeholder", "{history}"),
-    ("human", "{prompt}")
-])
+session_id = "Shashank"
 
-chain = template | ollama_cloud_llm | StrOutputParser()
+st.title("How can I help you today?")
+st.write("I can help you with a variety of questions and tasks. Just ask!")
+session_id = st.text_input("Enter your name..", session_id)
 
 def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return SQLChatMessageHistory(session_id=session_id, connection_string="sqlite:///./chat_history.db")
 
-history = RunnableWithMessageHistory(
-    chain,
-    get_session_history,
-    input_messages_key="prompt",
-    history_messages_key="history")
-
-session_id = "Shashank"
-session_id = st.text_input("Enter your name..", session_id)
-
-st.title("How can I help you today?")
-st.write("I can help you with a variety of questions and tasks. Just ask!")
+# Reset chat conversation
+if st.button("Start all new conversation"):
+    st.session_state.chat_history = []
+    get_session_history(session_id).clear()  # Clear the database history for the session
 
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
@@ -64,15 +55,34 @@ for message in st.session_state.chat_history:
 
 prompt = st.chat_input("Enter your message here...")
 
+#Chat code
+template = ChatPromptTemplate.from_messages([
+    ("placeholder", "{history}"),
+    ("human", "{prompt}")
+])
+
+chain = template | ollama_cloud_llm | StrOutputParser()
+
+def invoke_history(chain, session_id, prompt):
+    history = RunnableWithMessageHistory(
+    chain,
+    get_session_history,
+    input_messages_key="prompt",
+    history_messages_key="history")
+
+    for response in history.stream({"prompt": prompt}, config={"configurable": {"session_id": session_id}}):
+        yield response
+
 if prompt:
-    response = history.invoke( {"prompt": prompt}, config={"configurable": {"session_id": session_id}})
+    # response = history.invoke( 
+    #     {"prompt": prompt}, 
+    #     config={"configurable": {"session_id": session_id}})
 
     st.session_state.chat_history.append({"role": "user", "content": prompt})
-    #st.write(f"User: {prompt}")
     with st.chat_message("user"):
-        st.write(prompt)
+        st.markdown(prompt)
 
-    st.session_state.chat_history.append({"role": "assistant", "content": response})
-    #st.write(f"Assistant: {response}")
     with st.chat_message("assistant"):
-        st.write(response)
+        streamResponse = st.write_stream(invoke_history(chain, session_id, prompt))
+
+    st.session_state.chat_history.append({"role": "assistant", "content": streamResponse})
