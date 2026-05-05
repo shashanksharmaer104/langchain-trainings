@@ -1,3 +1,5 @@
+import os
+
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -12,10 +14,20 @@ import streamlit as st
 # load ENV file
 load = load_dotenv('./../.env', override=True)
 
-# initialize LLM
+# initialize LLM (local/cloud)
+ollama_cloud_llm = ChatOllama(
+    base_url="http://localhost:11434/",  # Ollama cloud endpoint
+    model="devstral-small-2:24b-cloud", #gemini-3-flash-preview:cloud #qwen3.5:cloud
+    temperature=0.5,
+    max_tokens=350,
+    headers={
+        "Authorization": f"Bearer {os.getenv('OLLAMA_CLOUD_API_KEY')}"  # Cloud auth
+    }
+)
+
 ollama_local_llm = ChatOllama(
     base_url="http://localhost:11434/",
-    model="llama3.2:latest ",
+    model="gemma3:1b",
     temperature=0.5,
     max_tokens=350
 )
@@ -26,7 +38,7 @@ template = ChatPromptTemplate.from_messages([
     ("human", "{prompt}")
 ])
 
-chain = template | ollama_local_llm | StrOutputParser()
+chain = template | ollama_cloud_llm | StrOutputParser()
 
 def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return SQLChatMessageHistory(session_id=session_id, connection_string="sqlite:///./chat_history.db")
@@ -38,18 +50,29 @@ history = RunnableWithMessageHistory(
     history_messages_key="history")
 
 session_id = "Shashank"
+session_id = st.text_input("Enter your name..", session_id)
 
-get_session_history(session_id).clear()
+st.title("How can I help you today?")
+st.write("I can help you with a variety of questions and tasks. Just ask!")
 
-# response1 = history.invoke(
-#     {"prompt": "What is the advantage of running the LLM in local machine? Just get me answer in bullet points and sub-bullet points. Keep the answer short."},
-#     config={"configurable": {"session_id": session_id}})
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
 
-# response2 = history.invoke(
-#     {"prompt": "How about for cloud?"},
-#     config={"configurable": {"session_id": session_id}})
-
-st.title("Chatbot with Message History")
-st.write("This is a simple chatbot application built using Streamlit and Langchain. The chatbot uses a message history to provide context-aware responses.")
+for message in st.session_state.chat_history:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
 prompt = st.chat_input("Enter your message here...")
+
+if prompt:
+    response = history.invoke( {"prompt": prompt}, config={"configurable": {"session_id": session_id}})
+
+    st.session_state.chat_history.append({"role": "user", "content": prompt})
+    #st.write(f"User: {prompt}")
+    with st.chat_message("user"):
+        st.write(prompt)
+
+    st.session_state.chat_history.append({"role": "assistant", "content": response})
+    #st.write(f"Assistant: {response}")
+    with st.chat_message("assistant"):
+        st.write(response)
