@@ -42,7 +42,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return SQLChatMessageHistory(session_id=session_id, connection_string="sqlite:///./chat_history.db")
 
 # Reset chat conversation
-if st.button("Start all new conversation"):
+if st.button("Start new chat"):
     st.session_state.chat_history = []
     get_session_history(session_id).clear()  # Clear the database history for the session
 
