@@ -69,7 +69,10 @@ print("Tools registered:", [t.name for t in tools])
 async def run_playwright_agent():
     # Launch browser manually so we fully control the async lifecycle
     pw = await async_playwright().start()
-    async_browser = await pw.chromium.launch(headless=False)
+    async_browser = await pw.chromium.launch(
+        headless=False,
+        args=["--start-maximized"]
+    )
 
     toolkit = PlayWrightBrowserToolkit.from_browser(async_browser=async_browser)
     browser_tools = toolkit.get_tools()
@@ -78,16 +81,6 @@ async def run_playwright_agent():
     tools_by_name = {t.name: t for t in browser_tools}
     navigate_tool = tools_by_name["navigate_browser"]
     get_element_tool = tools_by_name["get_elements"]
-
-    # Navigate to the target page
-    # await navigate_tool.arun({"url": "http://eaapp.somee.com/Employee/"})
-
-    # Extract table cell text
-    # cell_text = await get_element_tool.arun({
-    #     "selector": "td",
-    #     "action": "innerText",
-    # })
-    # print("Table cells:", cell_text)
 
     # Agent answering a question about the page
     browser_agent = create_react_agent(
